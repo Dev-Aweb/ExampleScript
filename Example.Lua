@@ -30,38 +30,6 @@ local coins = premium.Coins
 
 --// Functions //--
 
---// Awarding Winner //--
-local function AwardWinner(player:Player)
-	gameText.Value = ""
-	player.PlayerGui.MainGui.Buttons.Visible = true -- Display UI that was hiden in game
-	ReplicatedStorage.HideTopBar:FireClient(player, true) -- Display UI that was hiden in game
-	task.wait(0.2)
-	player:LoadCharacter() -- Teleport winner to lobby
-	task.wait(0.2)
-	
-	--// Display Winner //--
-	for i, plr in pairs(game:GetService("Players"):GetChildren()) do
-		local newef = plr.PlayerGui.Effect.Frame.Win -- Get frame
-		local play = plr.PlayerGui.Effect.Win -- Get sfx
-		play:Play() -- Play sfx
-		newef.Text = player.Name .." Won!" -- Display text
-		newef.Visible = true -- Frame visible
-	end
-	
-	--// Award Player //--
-	local profile = dataManager.GetProfile(player) -- Get profile
-	if profile and profile.Data then
-		profile.Data.Leaderstats.Wins += 1 -- Give Wins
-		profile.Data.Leaderstats.Coins += (100 + tonumber(player.Data.Values.WinBonus.Value)) * profile.Data.Values.Multi -- Award Coins * 2 if double coins gamepass owned else 1
-		--// Award 50% More For Premium Membership //--
-		if player.MembershipType == Enum.MembershipType.Premium then 
-			profile.Data.Leaderstats.Coins += ((100 + tonumber(player.Data.Values.WinBonus.Value)) / coins.Value) * profile.Data.Values.Multi
-		end
-	end
-end
-
---// Game Functions //--
-
 --// Main Function For Counting Children Of Any Folder //--
 function CountPlayersInFolder(folder)
 	local playerCount = 0
@@ -87,7 +55,7 @@ end
 --// Count Players In Lobby //--
 local function CountPlayersInLobby()
 	local afked = CountAfked() -- Count afk people
-	plrCount = CountPlayersInFolder(Players) -- Count inside Players folder
+	plrCount = CountPlayersInFolder(Players) - afked -- Count inside Players folder
 	
 	if plrCount <= 1 then
 		return false -- return false if there are not enough players
@@ -98,9 +66,24 @@ end
 
 local ChoosingMapAndMod, CheckPlayerCount, InGame -- Variables of Functions
 
+--// Teleport Players To Game Function //--
+local function TeleportPlayers()
+	for i, plr in pairs(Players:GetChildren()) do -- loop in players
+		if plr.Data and plr.Data.Values.Afk.Value == false and plr.Character then 
+			local num = math.random(1, 24)
+			plr.Character.Head.CFrame = CFrame.new(workspace.Teleport["Part"..num].Position)
+			plr.Character.Parent = inGame
+			plr.PlayerGui.MainGui.Buttons.Visible = false
+			ReplicatedStorage.HideTopBar:FireClient(plr, false)
+		end
+	end
+	
+	InGame()
+end
+
 --// Voting Map And Choosing Mod Function //--
 function ChoosingMapAndMod()
-	CheckPlayerCount() -- check if there are enough players
+	CountPlayersInLobby() -- check if there are enough players
 	gameText.Value = "Voteing for map.."
 	
 	--// Readying up maps to select //-- 
@@ -134,13 +117,13 @@ function ChoosingMapAndMod()
 	gameText.Value = "Mod chosen, the mod is " ..modselect[choose].Name ..". Get ready!"
 	task.wait(3)
 	
-	CheckPlayerCount() -- check if there are enough players last time
-	InGame() -- start game
+	CountPlayersInLobby() -- check if there are enough players last time
+	TeleportPlayers() -- teleport players
 end
 
 --// Intermission Function //--
 local function Intermission()
-	local t = intermission
+	local t = intermission.Value
 	while t > 0 do
 		t -= 1
 		gameText.Value = "Intermission.. "..t
@@ -163,33 +146,36 @@ local function WaitForMorePlayers()
 	end
 end
 
---// Player Count Checker Function //--
-function CheckPlayerCount()
-	local matchable = CountPlayersInLobby()
-	if matchable then
-		return -- if there are enough players return
-	end
-	
-	--// If there aren't enough players //--
-	if Map then -- if map found destroy it and end round
-		roundModule.EndTheRound()
-		Map:Destroy()
-	end
-	
-	WaitForMorePlayers()
-end
+--// Awarding Winner //--
+local function AwardWinner(player:Player)
+	gameText.Value = ""
+	player.PlayerGui.MainGui.Buttons.Visible = true -- Display UI that was hiden in game
+	ReplicatedStorage.HideTopBar:FireClient(player, true) -- Display UI that was hiden in game
+	task.wait(0.2)
+	player:LoadCharacter() -- Teleport winner to lobby
+	task.wait(0.2)
 
---// Teleport Players To Game Function //--
-local function TeleportPlayers()
-	for i, plr in pairs(Players:GetChildren()) do -- loop in players
-		if plr.Data and plr.Data.Values.Afk.Value == false and plr.Character then 
-			local num = math.random(1, 24)
-			plr.Character.Head.CFrame = CFrame.new(workspace.Teleport["Part"..num].Position)
-			plr.Character.Parent = inGame
-			plr.PlayerGui.MainGui.Buttons.Visible = false
-			ReplicatedStorage.HideTopBar:FireClient(plr, false)
+	--// Display Winner //--
+	for i, plr in pairs(game:GetService("Players"):GetChildren()) do
+		local newef = plr.PlayerGui.Effect.Frame.Win -- Get frame
+		local play = plr.PlayerGui.Effect.Win -- Get sfx
+		play:Play() -- Play sfx
+		newef.Text = player.Name .." Won!" -- Display text
+		newef.Visible = true -- Frame visible
+	end
+
+	--// Award Player //--
+	local profile = dataManager.GetProfile(player) -- Get profile
+	if profile and profile.Data then
+		profile.Data.Leaderstats.Wins += 1 -- Give Wins
+		profile.Data.Leaderstats.Coins += (100 + tonumber(player.Data.Values.WinBonus.Value)) * profile.Data.Values.Multi -- Award Coins * 2 if double coins gamepass owned else 1
+		--// Award 50% More For Premium Membership //--
+		if player.MembershipType == Enum.MembershipType.Premium then 
+			profile.Data.Leaderstats.Coins += ((100 + tonumber(player.Data.Values.WinBonus.Value)) / coins.Value) * profile.Data.Values.Multi
 		end
 	end
+	
+	WaitForMorePlayers() -- call fuction to start another round
 end
 
 --// Game Ender Function //--
@@ -221,6 +207,22 @@ local function CountPlayesInGame()
 	else
 		return
 	end
+end
+
+--// Player Count Checker Function //--
+function CheckPlayerCount()
+	local matchable = CountPlayesInGame()
+	if matchable then
+		return -- if there are enough players return
+	end
+
+	--// If there aren't enough players //--
+	if Map then -- if map found destroy it and end round
+		roundModule.EndTheRound()
+		Map:Destroy()
+	end
+
+	WaitForMorePlayers()
 end
 
 --// Award Killer Function //--
